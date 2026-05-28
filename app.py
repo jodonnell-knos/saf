@@ -57,4 +57,21 @@ with col1:
     st.subheader("Monthly Net Cash Flow")
     if not f_activity.empty:
         monthly_trend = f_activity.groupby('month_end')['net_cash_flow'].sum().reset_index()
-        fig_trend = px.line(monthly_trend, x='month_
+        fig_trend = px.line(monthly_trend, x='month_end', y='net_cash_flow', markers=True)
+        st.plotly_chart(fig_trend, use_container_width=True)
+    else:
+        st.info("No data available for the selected schools.")
+
+with col2:
+    st.subheader("Top 10 Vendors by Total Spend")
+    if not f_vendors.empty:
+        top_v = f_vendors.groupby('vendor')['total_spend'].sum().nlargest(10).reset_index()
+        fig_vendors = px.bar(top_v, x='vendor', y='total_spend', text_auto='.2s')
+        st.plotly_chart(fig_vendors, use_container_width=True)
+    else:
+        st.info("No data available for the selected schools.")
+
+# 6. Raw Data Tables
+st.divider()
+st.subheader("Raw Monthly Activity Data")
+st.dataframe(f_activity, use_container_width=True)
