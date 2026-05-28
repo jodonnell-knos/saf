@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import pyodbc
+import pymssql
 import plotly.express as px
 
 # 1. Page Setup
@@ -8,22 +8,21 @@ st.set_page_config(page_title="Student Activity Funds", layout="wide")
 st.title("🎓 Student Activity Fund Dashboard")
 st.write("Interactive overview of school accounts, cash flow, and vendor spending.")
 
-# 2. Database Connection
+# 2. Database Connection (Using pymssql to bypass Linux driver limits)
 @st.cache_resource
 def init_connection():
-    # Pulling credentials securely from Streamlit Secrets
-    server = st.secrets["DB_SERVER"]
-    database = st.secrets["DB_DATABASE"]
-    username = st.secrets["DB_USERNAME"]
-    password = st.secrets["DB_PASSWORD"]
-    
-    # Note: If Streamlit Cloud throws a driver error, change this 18 to a 17
-    driver = '{ODBC Driver 18 for SQL Server}' 
-    
-    conn_str = f"DRIVER={driver};SERVER={server};PORT=1433;DATABASE={database};UID={username};PWD={password}"
-    return pyodbc.connect(conn_str)
+    return pymssql.connect(
+        server=st.secrets["DB_SERVER"],
+        user=st.secrets["DB_USERNAME"],
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_DATABASE"]
+    )
 
-conn = init_connection()
+try:
+    conn = init_connection()
+except Exception as e:
+    st.error(f"🔑 Database connection failed. Check your Secrets configuration. Error: {e}")
+    st.stop()
 
 # 3. Fetch the Data (Using your built-in SQL Views)
 @st.cache_data
