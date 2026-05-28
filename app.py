@@ -2,26 +2,46 @@ import streamlit as st
 import pandas as pd
 import pymssql
 import plotly.express as px
+import time
 
 # 1. Page Setup
 st.set_page_config(page_title="Student Activity Funds", layout="wide")
 st.title("🎓 Student Activity Fund Dashboard")
 st.write("Interactive overview of school accounts, cash flow, and vendor spending.")
 
-# 2. Database Connection (Using pymssql to bypass Linux driver limits)
+# 2. Resilient Database Connection (Forcing it to wait for Azure Serverless to wake up)
 @st.cache_resource
 def init_connection():
-    return pymssql.connect(
-        server=st.secrets["DB_SERVER"],
-        user=st.secrets["DB_USERNAME"],
-        password=st.secrets["DB_PASSWORD"],
-        database=st.secrets["DB_DATABASE"]
-    )
+    max_retries = 5
+    retry_delay = 15  # Gives Azure a total of 75 seconds to spin up
+    
+    for attempt in range(max_retries):
+        try:
+            return pymssql.connect(
+                server=st.secrets["DB_SERVER"],
+                user=st.secrets["DB_USERNAME"],
+                password=st.secrets["DB_PASSWORD"],
+                database=st.secrets["DB_DATABASE"],
+                login_timeout=30
+            )
+        except (pymssql.OperationalError, pymssql.InterfaceError) as e:
+            # Detect Azure 40613 "database not currently available" sleep mode
+            is_sleeping = False
+            if hasattr(e, 'args') and len(e.args) > 0 and e.args[0] == 40613:
+                is_sleeping = True
+            elif "40613" in str(e):
+                is_sleeping = True
+                
+            if is_sleeping and attempt < max_retries - 1:
+                st.toast(f"😴 Azure is waking up the database... retrying in {retry_delay}s (Attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+            else:
+                raise e
 
 try:
     conn = init_connection()
 except Exception as e:
-    st.error(f"🔑 Database connection failed. Check your Secrets configuration. Error: {e}")
+    st.error(f"❌ Connection failed permanently. If this keeps happening, double-check your password strings in your Streamlit Advanced Secrets box. Error: {e}")
     st.stop()
 
 # 3. Fetch the Data (Using your built-in SQL Views)
